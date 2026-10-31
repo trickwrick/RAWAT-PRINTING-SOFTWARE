@@ -1,0 +1,797 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { PlusSquare, Trash2, Printer, X, Download, Pencil, RefreshCw, Filter, Search, Check, Share2, Loader2, Building2, Hash, Calendar, Layers, FileText, Globe, MapPin, FileDigit } from 'lucide-react';
+import { downloadAsPDF } from './utils/pdfExport';
+import { printElement } from './utils/printDocument';
+import DeleteConfirmationModal from './components/DeleteConfirmationModal';
+import { syncPlateUsageFromCards, formatPlateSizes, formatPlateUseCounts } from './utils/plateUsage';
+import {
+  formatCoverPaperName,
+  buildPaperStockPrintRows,
+} from './utils/jobPaperLines';
+import { SELLER, TaxFieldsTable, fmtTaxDate, CompanyBrandName } from './utils/taxDocumentPrint';
+import { API_BASE_URL } from './utils/apiBase';
+
+const BINDING_OPTIONS = [
+  { key: 'bindingCenterPin', label: 'Center Pin' },
+  { key: 'bindingSilai', label: 'Silai' },
+  { key: 'bindingSidePin', label: 'Side Pin' },
+  { key: 'bindingFolding', label: 'Folding' },
+  { key: 'bindingPerforation', label: 'Perforation' },
+  { key: 'bindingNumbring', label: 'Numbring' },
+  { key: 'bindingRegister', label: 'Register' },
+  { key: 'bindingGlue', label: 'Glue Binding' },
+  { key: 'bindingKachhi', label: 'Kechhi Binding' },
+  { key: 'bindingPukki', label: 'Pukki Binding' },
+];
+
+const getBindingLabel = (card) =>
+  BINDING_OPTIONS.filter((item) => card[item.key]).map((item) => item.label).join(', ') || '-';
+
+export default function JobCardListing() {
+  const navigate = useNavigate();
+  const [jobCards, setJobCards] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const filterRef = useRef(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [columnVisibility, setColumnVisibility] = useState(() => {
+    const saved = localStorage.getItem('jobCardColumnVisibility');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error parsing saved visibility:", e);
+      }
+    }
+    return {
+      partyName: true,
+      jobNumber: true,
+      jobDate: true,
+      jobQty: true,
+      jobName: true,
+      pageSize: true,
+      pageCount: false,
+      printingType: true,
+      paper: true,
+      paperGSM: true,
+      innerPaperGSM: false,
+      lamination: true,
+      binding: true,
+      createdAt: true
+    };
+  });
+
+  useEffect(() => {
+    localStorage.setItem('jobCardColumnVisibility', JSON.stringify(columnVisibility));
+  }, [columnVisibility]);
+
+  const loadData = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/jobcard`);
+      const data = await response.json();
+      syncPlateUsageFromCards(data);
+      setJobCards(data);
+    } catch (error) {
+      console.error("Error loading job cards:", error);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+
+    // Close filter dropdown on click outside
+    const handleClickOutside = (event) => {
+      if (filterRef.current && !filterRef.current.contains(event.target)) {
+        setIsFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const refreshData = () => {
+    loadData();
+  };
+
+  const getBindingText = (card) => {
+    const bindings = [
+      { key: 'bindingCenterPin', label: 'Center Pin' },
+      { key: 'bindingSilai', label: 'Silai' },
+      { key: 'bindingSidePin', label: 'Side Pin' },
+      { key: 'bindingFolding', label: 'Folding' },
+      { key: 'bindingPerforation', label: 'Perforation' },
+      { key: 'bindingNumbring', label: 'Numbring' },
+      { key: 'bindingRegister', label: 'Register' },
+      { key: 'bindingGlue', label: 'Glue Binding' },
+      { key: 'bindingKachhi', label: 'Kechhi Binding' },
+      { key: 'bindingPukki', label: 'Pukki Binding' }
+    ].filter(b => card[b.key]).map(b => b.label);
+    return bindings.length > 0 ? bindings : null;
+  };
+
+  const formatShortDate = (value) =>
+    new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: '2-digit' });
+
+  const formatShortDateTime = (value) => {
+    const d = new Date(value);
+    return {
+      date: d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: '2-digit' }),
+      time: d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
+    };
+  };
+
+  const getMobileCardMetaParts = (card) => {
+    const parts = [];
+    if (columnVisibility.jobDate) parts.push(formatShortDate(card.jobDate));
+    if (columnVisibility.jobQty && card.jobQty) parts.push(`Qty ${card.jobQty}`);
+    if (columnVisibility.pageSize && card.pageSize) parts.push(card.pageSize);
+    if (columnVisibility.pageCount && card.pageCount) parts.push(`${card.pageCount} pages`);
+    if (columnVisibility.printingType && card.printingType) parts.push(card.printingType);
+    if (columnVisibility.paper && card.paper) parts.push(card.paper);
+    if (columnVisibility.paperGSM && card.paperGSM) parts.push(`Cover ${card.paperGSM} GSM`);
+    if (columnVisibility.innerPaperGSM && card.innerPaperGSM) parts.push(`Inner ${card.innerPaperGSM} GSM`);
+    if (columnVisibility.lamination && card.lamination) parts.push(card.lamination);
+    if (columnVisibility.binding) {
+      const binding = getBindingText(card);
+      if (binding?.length) parts.push(binding.join(', '));
+    }
+    if (columnVisibility.createdAt) {
+      const created = formatShortDateTime(card.createdAt);
+      parts.push(`${created.date} ${created.time}`);
+    }
+    return parts;
+  };
+
+  const exportToCSV = () => {
+    const visibleData = jobCards.map(card => {
+      const exportRow = {};
+      if (columnVisibility.partyName) exportRow['Party Name'] = card.partyName;
+      if (columnVisibility.jobNumber) exportRow['Job Number'] = card.jobNumber;
+      if (columnVisibility.jobDate) exportRow['Job Date'] = new Date(card.jobDate).toLocaleDateString();
+      if (columnVisibility.jobQty) exportRow['Job Qty'] = card.jobQty || 0;
+      if (columnVisibility.pageSize) exportRow['Page Size'] = card.pageSize || '-';
+      if (columnVisibility.pageCount) exportRow['Page Count'] = card.pageCount || '-';
+      if (columnVisibility.printingType) exportRow['Color'] = card.printingType || '-';
+      if (columnVisibility.paper) exportRow['Paper'] = card.paper || '-';
+      if (columnVisibility.paperGSM) exportRow['Paper GSM'] = card.paperGSM || '-';
+      if (columnVisibility.lamination) exportRow['Lamination'] = card.lamination || '-';
+      if (columnVisibility.binding) exportRow['Binding'] = (getBindingText(card) || []).join(' • ');
+      if (columnVisibility.createdAt) exportRow['Created At'] = new Date(card.createdAt).toLocaleString();
+      return exportRow;
+    });
+
+    if (visibleData.length === 0) return;
+
+    const headers = Object.keys(visibleData[0]);
+    const csvContent = [
+      headers.join(','),
+      ...visibleData.map(row => headers.map(header => `"${row[header] || ''}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `job_card_listing_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const toggleColumn = (col) => {
+    setColumnVisibility(prev => ({ ...prev, [col]: !prev[col] }));
+  };
+
+  const filteredCards = jobCards.filter(card =>
+    card.partyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    card.jobName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    card.jobNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [cardToDelete, setCardToDelete] = useState(null);
+
+  const handleDelete = (id) => {
+    setCardToDelete(id);
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (cardToDelete) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/jobcard/${cardToDelete}`, {
+          method: "DELETE"
+        });
+        if (response.ok) {
+          setJobCards(jobCards.filter(card => card._id !== cardToDelete));
+          setIsDeleteModalOpen(false);
+          setCardToDelete(null);
+        } else {
+          console.error("Failed to delete job card");
+        }
+      } catch (error) {
+        console.error("Error deleting job card:", error);
+      }
+    }
+  };
+
+  const [selectedCard, setSelectedCard] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const openPreview = (card) => {
+    setSelectedCard(card);
+    setIsModalOpen(true);
+  };
+
+  const closePreview = () => {
+    setIsModalOpen(false);
+    setSelectedCard(null);
+  };
+
+  const getJobCardTitle = (card) => {
+    if (!card) return 'JobCard';
+    const num = card.jobNumber ? `JobCard_${card.jobNumber}` : 'JobCard';
+    const party = card.partyName ? `_${card.partyName.trim()}` : '';
+    return `${num}${party}`;
+  };
+
+  const handlePrint = () => {
+    window.scrollTo(0, 0);
+    const container = document.querySelector('.a4-page-container');
+    if (container) container.scrollTop = 0;
+    printElement('printable-inner', {
+      documentTitle: getJobCardTitle(selectedCard),
+    });
+  };
+
+  const handleSharePDF = async () => {
+    await downloadAsPDF(
+      'printable-inner',
+      getJobCardTitle(selectedCard),
+      setIsGenerating
+    );
+  };
+
+  return (
+    <div className="w-full px-0 mt-8 pb-12 max-w-full">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 no-print">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 group flex items-center gap-3">
+            <div className="bg-blue-600 w-1.5 h-6 rounded-full" />
+            Job Card Listings
+          </h1>
+          <p className="text-gray-500 mt-1 font-medium text-sm sm:text-base italic">Manage and view all your job cards</p>
+        </div>
+        <button
+          onClick={() => navigate('/job-card')}
+          className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-xl shadow-blue-100 hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+        >
+          <PlusSquare size={20} />
+          Add New Job Card
+        </button>
+      </div>
+
+      {/* Toolbar */}
+      <div className="bg-white p-4 rounded-t-2xl border-x border-t border-gray-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 no-print">
+        <div className="relative w-full sm:max-w-xs md:max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-500" size={18} />
+          <input
+            type="text"
+            placeholder="Search keyword..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-indigo-50/50 border border-indigo-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-500/20 focus:bg-white focus:border-indigo-500 text-indigo-900 placeholder:text-indigo-400 text-sm transition-all"
+          />
+        </div>
+
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={refreshData}
+            className="p-2.5 text-gray-600 hover:bg-gray-100 rounded-xl transition-all border border-gray-200 group shrink-0"
+            title="Refresh Data"
+          >
+            <RefreshCw size={18} className="group-active:rotate-180 transition-transform duration-500" />
+          </button>
+          <button
+            onClick={exportToCSV}
+            className="p-2.5 text-gray-600 hover:bg-gray-100 rounded-xl transition-all border border-gray-200 flex items-center gap-2 text-sm font-semibold shrink-0"
+            title="Export CSV"
+          >
+            <Download size={18} /> <span className="hidden xs:inline">Export</span>
+          </button>
+
+          <div className="relative" ref={filterRef}>
+            <button
+              onClick={() => setIsFilterOpen(!isFilterOpen)}
+              className={`p-2.5 rounded-xl transition-all border flex items-center gap-2 text-sm font-semibold ${isFilterOpen ? 'bg-blue-50 border-blue-200 text-blue-600' : 'text-gray-600 border-gray-200 hover:bg-gray-100'}`}
+            >
+              <Filter size={18} /> <span className="hidden xs:inline">Filter</span>
+            </button>
+
+            {isFilterOpen && (
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 p-4 animate-in fade-in zoom-in-95 duration-200">
+                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 px-1">Column Display</h3>
+                <div className="space-y-1 max-h-64 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+                  {[
+                    { id: 'partyName', label: 'Party Name' },
+                    { id: 'jobNumber', label: 'Job Number' },
+                    { id: 'jobDate', label: 'Job Date' },
+                    { id: 'jobQty', label: 'Job Qty' },
+                    { id: 'jobName', label: 'Item Name' },
+                    { id: 'pageSize', label: 'Item Size' },
+                    { id: 'pageCount', label: 'Page Count' },
+                    { id: 'printingType', label: 'Color' },
+                    { id: 'paper', label: 'Paper' },
+                    { id: 'paperGSM', label: 'Cover GSM' },
+                    { id: 'innerPaperGSM', label: 'Inner GSM' },
+                    { id: 'lamination', label: 'Lamination' },
+                    { id: 'binding', label: 'Binding' },
+                    { id: 'createdAt', label: 'Created At' }
+                  ].map((col) => (
+                    <label key={col.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors group">
+                      <span className="text-sm font-medium text-gray-700">{col.label}</span>
+                      <div
+                        onClick={(e) => { e.preventDefault(); toggleColumn(col.id); }}
+                        className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${columnVisibility[col.id] ? 'bg-blue-600 border-blue-600' : 'border-gray-300 bg-white group-hover:border-blue-400'}`}
+                      >
+                        {columnVisibility[col.id] && <Check size={12} className="text-white" strokeWidth={4} />}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-b-2xl shadow-sm border border-gray-100 overflow-hidden no-print max-w-full">
+        {/* Mobile card list — readable layout without cramped table cells */}
+        <div className="md:hidden job-card-list-mobile">
+          {filteredCards.length === 0 ? (
+            <div className="py-10 text-center text-gray-500 text-sm">No job cards found.</div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {filteredCards.map((card) => {
+                const metaParts = getMobileCardMetaParts(card);
+                return (
+                <article key={card._id} className="p-3.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      {columnVisibility.partyName && (
+                        <h3 className="text-[15px] font-bold text-gray-900 leading-snug wrap-break-word">
+                          {card.partyName || '-'}
+                        </h3>
+                      )}
+                      {metaParts.length > 0 && (
+                        <p className={`text-xs text-gray-500 leading-relaxed wrap-break-word ${columnVisibility.partyName ? 'mt-2' : ''}`}>
+                          {metaParts.join('  ·  ')}
+                        </p>
+                      )}
+                      {columnVisibility.jobName && card.jobName && (
+                        <p className={`text-xs text-gray-700 leading-relaxed wrap-break-word ${metaParts.length > 0 || columnVisibility.partyName ? 'mt-1' : ''}`}>
+                          {card.jobName}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="shrink-0 flex flex-col items-end gap-2">
+                      {columnVisibility.jobNumber && (
+                        <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg text-xs font-semibold leading-normal">
+                          {card.jobNumber || '-'}
+                        </span>
+                      )}
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          onClick={() => openPreview(card)}
+                          className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 p-2 rounded-lg transition-colors"
+                          title="Print"
+                          aria-label="Print"
+                        >
+                          <Printer size={17} />
+                        </button>
+                        <button
+                          onClick={() => navigate('/job-card', { state: { editData: card } })}
+                          className="text-teal-500 hover:text-teal-700 hover:bg-teal-50 p-2 rounded-lg transition-colors"
+                          title="Edit"
+                          aria-label="Edit"
+                        >
+                          <Pencil size={17} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(card._id)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                          title="Delete"
+                          aria-label="Delete"
+                        >
+                          <Trash2 size={17} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              );})}
+            </div>
+          )}
+        </div>
+
+        {/* Desktop / tablet table */}
+        <div className="hidden md:block w-full overflow-x-auto job-card-list-table-wrap">
+          <table className="w-full table-fixed text-xs text-left min-w-180">
+            <colgroup>
+              <col style={{ width: '28px' }} />
+              {columnVisibility.partyName && <col style={{ width: '13%' }} />}
+              {columnVisibility.jobNumber && <col style={{ width: '9%' }} />}
+              {columnVisibility.jobDate && <col style={{ width: '7%' }} />}
+              {columnVisibility.jobQty && <col style={{ width: '10%' }} />}
+              {columnVisibility.jobName && <col style={{ width: '14%' }} />}
+              {columnVisibility.pageSize && <col style={{ width: '7%' }} />}
+              {columnVisibility.pageCount && <col style={{ width: '5%' }} />}
+              {columnVisibility.printingType && <col style={{ width: '7%' }} />}
+              {columnVisibility.paper && <col style={{ width: '7%' }} />}
+              {columnVisibility.paperGSM && <col style={{ width: '5%' }} />}
+              {columnVisibility.innerPaperGSM && <col style={{ width: '5%' }} />}
+              {columnVisibility.lamination && <col style={{ width: '7%' }} />}
+              {columnVisibility.binding && <col style={{ width: '8%' }} />}
+              {columnVisibility.createdAt && <col style={{ width: '9%' }} />}
+              <col style={{ width: '56px' }} />
+            </colgroup>
+            <thead>
+              <tr className="bg-gray-50 text-gray-500 font-semibold border-b border-gray-100 uppercase tracking-wide text-[10px]">
+                <th className="py-2 px-0.5 text-center normal-case tracking-normal">#</th>
+                {columnVisibility.partyName && <th className="py-2.5 px-1.5 wrap-break-word whitespace-normal leading-normal">Party Name</th>}
+                {columnVisibility.jobNumber && <th className="py-2.5 px-1.5 whitespace-normal leading-normal">Job No.</th>}
+                {columnVisibility.jobDate && <th className="py-2.5 px-1.5 leading-normal">Date</th>}
+                {columnVisibility.jobQty && <th className="py-2.5 px-1.5 wrap-break-word whitespace-normal leading-normal">Qty</th>}
+                {columnVisibility.jobName && <th className="py-2.5 px-1.5 wrap-break-word whitespace-normal leading-normal">Item Name</th>}
+                {columnVisibility.pageSize && <th className="py-2.5 px-1.5 wrap-break-word whitespace-normal leading-normal">Size</th>}
+                {columnVisibility.pageCount && <th className="py-2.5 px-1.5 leading-normal">Pages</th>}
+                {columnVisibility.printingType && <th className="py-2.5 px-1.5 wrap-break-word whitespace-normal leading-normal">Color</th>}
+                {columnVisibility.paper && <th className="py-2.5 px-1.5 wrap-break-word whitespace-normal leading-normal">Paper</th>}
+                {columnVisibility.paperGSM && <th className="py-2.5 px-1.5 leading-normal">C.GSM</th>}
+                {columnVisibility.innerPaperGSM && <th className="py-2.5 px-1.5 leading-normal">I.GSM</th>}
+                {columnVisibility.lamination && <th className="py-2.5 px-1.5 wrap-break-word whitespace-normal leading-normal">Lam.</th>}
+                {columnVisibility.binding && <th className="py-2.5 px-1.5 wrap-break-word whitespace-normal leading-normal">Binding</th>}
+                {columnVisibility.createdAt && <th className="py-2.5 px-1.5 wrap-break-word whitespace-normal leading-normal">Created</th>}
+                <th className="py-2.5 px-1 text-center leading-normal">Action</th>
+              </tr>
+            </thead>
+            <tbody className="text-gray-700">
+              {filteredCards.length === 0 ? (
+                <tr>
+                  <td colSpan="20" className="py-8 text-center text-gray-500 text-sm">
+                    No job cards found.
+                  </td>
+                </tr>
+              ) : (
+                filteredCards.map((card, index) => (
+                  <tr key={card._id} className="border-b last:border-0 border-gray-50 hover:bg-gray-50 transition-colors">
+                    <td className="py-2 px-0.5 text-gray-500 align-top text-center text-[11px]">{index + 1}</td>
+                    {columnVisibility.partyName && (
+                      <td className="py-2.5 px-1.5 font-medium text-gray-900 align-top wrap-break-word whitespace-normal leading-relaxed">{card.partyName}</td>
+                    )}
+                    {columnVisibility.jobNumber && (
+                      <td className="py-2.5 px-1.5 align-top wrap-break-word whitespace-normal leading-relaxed">
+                        <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-semibold inline-block wrap-break-word">
+                          {card.jobNumber}
+                        </span>
+                      </td>
+                    )}
+                    {columnVisibility.jobDate && (
+                      <td className="py-2.5 px-1.5 text-gray-500 align-top whitespace-normal leading-relaxed">
+                        {formatShortDate(card.jobDate)}
+                      </td>
+                    )}
+                    {columnVisibility.jobQty && (
+                      <td className="py-2.5 px-1.5 text-gray-800 font-semibold align-top wrap-break-word whitespace-normal leading-relaxed">
+                        {card.jobQty || 0}
+                      </td>
+                    )}
+                    {columnVisibility.jobName && (
+                      <td className="py-2.5 px-1.5 text-gray-900 align-top wrap-break-word whitespace-normal leading-relaxed">{card.jobName || '-'}</td>
+                    )}
+                    {columnVisibility.pageSize && (
+                      <td className="py-2.5 px-1.5 text-gray-700 align-top wrap-break-word whitespace-normal leading-relaxed">{card.pageSize || '-'}</td>
+                    )}
+                    {columnVisibility.pageCount && (
+                      <td className="py-2.5 px-1.5 text-gray-700 align-top leading-relaxed">{card.pageCount || '-'}</td>
+                    )}
+                    {columnVisibility.printingType && (
+                      <td className="py-2.5 px-1.5 align-top wrap-break-word whitespace-normal leading-relaxed">
+                        {card.printingType ? (
+                          <span className="bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded text-[10px] font-medium inline-block">{card.printingType}</span>
+                        ) : '-'}
+                      </td>
+                    )}
+                    {columnVisibility.paper && (
+                      <td className="py-2.5 px-1.5 text-gray-700 align-top wrap-break-word whitespace-normal leading-relaxed">{card.paper || '-'}</td>
+                    )}
+                    {columnVisibility.paperGSM && <td className="py-2.5 px-1.5 text-gray-700 align-top leading-relaxed">{card.paperGSM || '-'}</td>}
+                    {columnVisibility.innerPaperGSM && <td className="py-2.5 px-1.5 text-gray-700 align-top leading-relaxed">{card.innerPaperGSM || '-'}</td>}
+                    {columnVisibility.lamination && (
+                      <td className="py-2.5 px-1.5 align-top wrap-break-word whitespace-normal leading-relaxed">
+                        {card.lamination ? (
+                          <span className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-medium inline-block">{card.lamination}</span>
+                        ) : <span className="text-indigo-500">-</span>}
+                      </td>
+                    )}
+                    {columnVisibility.binding && (
+                      <td className="py-2.5 px-1.5 align-top wrap-break-word whitespace-normal leading-relaxed">
+                        {(() => {
+                          const chips = getBindingText(card);
+                          return chips ? (
+                            <div className="flex flex-wrap gap-0.5">
+                              {chips.map((b, i) => (
+                                <span key={i} className="bg-amber-50 text-amber-700 border border-amber-100 px-1 py-0.5 rounded text-[9px] font-semibold">{b}</span>
+                              ))}
+                            </div>
+                          ) : <span className="text-indigo-500">-</span>;
+                        })()}
+                      </td>
+                    )}
+                    {columnVisibility.createdAt && (
+                      <td className="py-2.5 px-1.5 text-gray-500 align-top wrap-break-word whitespace-normal leading-relaxed">
+                        <span className="block">{formatShortDateTime(card.createdAt).date}</span>
+                        <span className="block text-[10px] text-indigo-500 mt-0.5">{formatShortDateTime(card.createdAt).time}</span>
+                      </td>
+                    )}
+                    <td className="py-2 px-0.5 align-top">
+                      <div className="flex items-center justify-center gap-0.5">
+                        <button
+                          onClick={() => openPreview(card)}
+                          className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 p-0.5 rounded transition-colors focus:outline-none"
+                          title="Print Preview"
+                        >
+                          <Printer size={13} />
+                        </button>
+                        <button
+                          onClick={() => navigate('/job-card', { state: { editData: card } })}
+                          className="text-teal-500 hover:text-teal-700 hover:bg-teal-50 p-0.5 rounded transition-colors focus:outline-none"
+                          title="Edit"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(card._id)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 p-0.5 rounded transition-colors focus:outline-none"
+                          title="Delete"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Print Preview Modal */}
+      {isModalOpen && selectedCard && (
+        <div className="print-modal-overlay fixed inset-0 bg-black/60 z-100 flex items-stretch sm:items-center justify-center p-0 sm:p-4 overflow-y-auto print:static print:overflow-visible print:bg-white print:p-0">
+          <div className="print-modal-shell job-card-modal-shell bg-white border border-gray-300 w-full max-w-4xl sm:max-w-4xl relative h-dvh sm:h-auto max-h-dvh sm:max-h-[95vh] flex flex-col shadow-none print:max-h-none print:overflow-visible print:border-0 print:shadow-none print:h-auto">
+            <div className="modal-header print-modal-header no-print p-3 sm:p-4 border-b bg-white">
+              <div className="print-modal-title-row flex items-center justify-between gap-2">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-800">Job Card Preview</h2>
+                <button
+                  onClick={closePreview}
+                  className="p-2 hover:bg-gray-200 rounded-full transition-colors shrink-0"
+                  aria-label="Close preview"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            <p className="print-preview-hint no-print px-3 py-2 text-[11px] font-semibold text-blue-700 bg-blue-50 border-b border-blue-100 sm:hidden">
+              Swipe left/right to view the full job card before printing.
+            </p>
+
+            {/* Modal Body - Printable Content */}
+            <div className="p-2 overflow-y-auto overflow-x-auto grow a4-page-container print:overflow-visible print:max-h-none print:h-auto print:p-0 print:grow-0" id="printable-content">
+              <div
+                id="printable-inner"
+                className="bg-white w-full shadow-none tax-invoice-print-page"
+              >
+                <table className="tax-invoice job-card-print-table w-full border-collapse text-black" style={{ fontSize: '11px', fontFamily: 'Arial, Helvetica, sans-serif' }}>
+                  <colgroup>
+                    <col style={{ width: '8.33%' }} />
+                    <col style={{ width: '8.33%' }} />
+                    <col style={{ width: '8.33%' }} />
+                    <col style={{ width: '8.33%' }} />
+                    <col style={{ width: '8.33%' }} />
+                    <col style={{ width: '8.33%' }} />
+                    <col style={{ width: '8.33%' }} />
+                    <col style={{ width: '8.33%' }} />
+                    <col style={{ width: '8.33%' }} />
+                    <col style={{ width: '8.33%' }} />
+                    <col style={{ width: '8.33%' }} />
+                    <col style={{ width: '8.33%' }} />
+                  </colgroup>
+                  <tbody>
+                    <tr>
+                      <td colSpan={12} className="tax-cell align-top p-0 job-card-top-header">
+                        <div className="flex justify-between items-start gap-4 p-2">
+                          <div className="job-card-company-header flex-1 min-w-0">
+                            <CompanyBrandName className="text-left job-card-brand leading-none mb-1" large />
+                            <p className="tax-header-line text-left">Office: {SELLER.office}</p>
+                            <p className="tax-header-line text-left">Factory: {SELLER.factory}</p>
+                            <p className="tax-header-line text-left">{SELLER.tel}, {SELLER.email}</p>
+                            <p className="tax-header-line text-left">
+                              <span className="tax-field-label">GSTIN :</span> {SELLER.gstin}
+                              <span className="ml-4 tax-field-label">PAN :</span> {SELLER.pan}
+                            </p>
+                            <p className="tax-header-line text-left">
+                              <span className="tax-field-label">MSME REGD NO :-</span> {SELLER.msmeRegNo}
+                            </p>
+                          </div>
+                          <div className="job-card-doc-badge bg-blue-600 text-white px-5 py-1.5 rounded-md text-[11px] font-black uppercase tracking-widest shrink-0">
+                            JOB CARD
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td colSpan={6} className="tax-cell align-top job-card-meta-cell p-1.5">
+                        <TaxFieldsTable rows={[
+                          ['Job Number', selectedCard.jobNumber],
+                          ['Job Date', fmtTaxDate(selectedCard.jobDate)],
+                          ['Job Qty', selectedCard.jobQty || '-'],
+                          ['Item Name', selectedCard.jobName || '-'],
+                        ]} />
+                      </td>
+                      <td colSpan={6} className="tax-cell align-top job-card-meta-cell p-1.5">
+                        <TaxFieldsTable rows={[
+                          ['Party Name', selectedCard.partyName],
+                          ['Contact', selectedCard.contactNo || '-'],
+                          ['GST No.', selectedCard.gstNo || '-'],
+                          ['Item Size', selectedCard.pageSize || '-'],
+                        ]} />
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td colSpan={12} className="tax-cell align-top p-0">
+                        <div className="tax-blue job-card-section-title text-center py-1 px-2">Party Details</div>
+                        <div className="job-card-section-body p-1.5">
+                          <TaxFieldsTable rows={[
+                            ['Address', selectedCard.address || '-'],
+                            ['E-MAIL', selectedCard.emailId || '-'],
+                            ['Color Detail', selectedCard.printingType || '-'],
+                          ]} />
+                        </div>
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td colSpan={6} className="tax-cell align-top p-0">
+                        <div className="tax-blue job-card-section-title text-center py-1 px-2">Production Specs</div>
+                        <div className="job-card-section-body p-1.5">
+                          <TaxFieldsTable rows={[
+                            ['Compose', selectedCard.compose || 'No'],
+                            ['Design', selectedCard.design || 'No'],
+                            ['Paper Source', selectedCard.paperSource || 'Company paper'],
+                            ['Paper Type', formatCoverPaperName(selectedCard)],
+                          ]} />
+                        </div>
+                      </td>
+                      <td colSpan={6} className="tax-cell align-top p-0">
+                        <div className="tax-blue job-card-section-title text-center py-1 px-2">Press Details</div>
+                        <div className="job-card-section-body p-1.5">
+                          <TaxFieldsTable rows={[
+                            ['Plate Type', selectedCard.plateType || 'New'],
+                            ['Plate Size', formatPlateSizes(selectedCard.plateSize) || '-'],
+                            ['Plate Number', formatPlateUseCounts(selectedCard.plateUseCount) || '-'],
+                            ['Plate Qty', selectedCard.plateQty ?? 0],
+                            ['Lamination', selectedCard.lamination || '-'],
+                            ['Printing Qty', selectedCard.printingQty || 0],
+                          ]} />
+                        </div>
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td colSpan={6} className="tax-cell align-top p-0">
+                        <div className="tax-blue job-card-section-title text-center py-1 px-2">Paper &amp; Stock</div>
+                        <div className="job-card-section-body p-1.5">
+                          <TaxFieldsTable rows={buildPaperStockPrintRows(selectedCard)} />
+                        </div>
+                      </td>
+                      <td colSpan={6} className="tax-cell align-top p-0">
+                        <div className="tax-blue job-card-section-title text-center py-1 px-2">Post-Press / Binding</div>
+                        <div className="job-card-section-body p-1.5">
+                          <TaxFieldsTable rows={[
+                            ['Binding Options', getBindingLabel(selectedCard)],
+                          ]} />
+                        </div>
+                      </td>
+                    </tr>
+
+                    <tr className="avoid-break">
+                      <td colSpan={12} className="tax-cell align-top p-0">
+                        <div className="tax-blue job-card-section-title text-center py-1 px-2">Work Instructions</div>
+                        <div className="job-card-section-body job-card-work-instructions p-2">
+                          <p className="job-card-work-instructions-text leading-relaxed m-0">
+                            {selectedCard.notes?.trim()
+                              ? selectedCard.notes
+                              : 'Handle with care. Ensure high quality print and accurate alignment.'}
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td colSpan={6} className="tax-cell align-bottom text-center" style={{ height: '72px' }}>
+                        <div className="pt-10">
+                          <div className="border-t border-black mx-8 pt-1">
+                            <span className="text-[10px] font-bold uppercase">Office Signature</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td colSpan={6} className="tax-cell align-bottom text-center" style={{ height: '72px' }}>
+                        <div className="pt-10">
+                          <div className="border-t border-black mx-8 pt-1">
+                            <span className="text-[10px] font-bold uppercase">Press Signature</span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 sm:p-4 border-t bg-white flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 modal-footer no-print sticky bottom-0 z-10 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
+              <button
+                onClick={closePreview}
+                className="w-full sm:w-auto px-4 py-3 sm:py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition-colors rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePrint}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-3 sm:py-2 text-sm font-bold text-white bg-green-600 hover:bg-green-700 transition-colors rounded-lg"
+              >
+                <Printer size={16} /> Print
+              </button>
+              <button
+                onClick={handleSharePDF}
+                disabled={isGenerating}
+                className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-3 sm:py-2 text-sm font-medium text-white transition-all rounded-lg ${isGenerating ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Share2 size={16} /> Share
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        title="Are you sure?"
+        message="Are you sure you want to move to trash?"
+      />
+    </div>
+  );
+}
+
+
+

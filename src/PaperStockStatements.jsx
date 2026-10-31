@@ -1,0 +1,374 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Search,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Calendar,
+  User,
+  Hash,
+  Layers,
+  Eye,
+  Undo2,
+} from 'lucide-react';
+import { API_BASE_URL } from './utils/apiBase';
+import StockLedgerModal from './components/StockLedgerModal';
+
+const HighlightText = ({ text, highlight }) => {
+  if (!highlight || !highlight.trim()) return <>{text}</>;
+  const regex = new RegExp(`(${highlight.trim()})`, 'gi');
+  const parts = String(text).split(regex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        regex.test(part) ? (
+          <mark key={i} className="bg-yellow-200 text-gray-900 rounded-sm px-0.5 font-bold">
+            {part}
+          </mark>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
+};
+
+const PaperStockStatements = () => {
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('Company paper');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [selectedLedgerStock, setSelectedLedgerStock] = useState(null);
+
+  const loadTransactions = async () => {
+    setLoading(true);
+    setError('');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const fetchOptions = { signal: controller.signal };
+
+    try {
+      const txRes = await fetch(`${API_BASE_URL}/api/paper-stock/transactions`, fetchOptions);
+      clearTimeout(timeoutId);
+
+      if (!txRes.ok) {
+        if (txRes.status === 502 || txRes.status === 503 || txRes.status === 504) {
+          throw new Error('Backend server is offline or unreachable. Please ensure the server is running.');
+        }
+        throw new Error('Could not load transaction history.');
+      }
+
+      const txData = await txRes.json();
+      setTransactions(Array.isArray(txData) ? txData : []);
+    } catch (err) {
+      clearTimeout(timeoutId);
+      console.error('Fetch error:', err);
+      setTransactions([]);
+      if (err.name === 'AbortError') {
+        setError('Server is not responding. Please try again in a moment.');
+      } else {
+        setError(err.message || 'Could not load transaction history.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTransactions();
+  }, []);
+
+  const handleRevert = async (transaction) => {
+    const isAdd = transaction.transactionType === 'add';
+    const actionText = isAdd ? 'remove the added stock' : 'restore the deducted stock';
+    
+    if (!window.confirm(`Are you sure you want to revert this transaction?\n\nThis will ${actionText} from the main inventory and permanently delete this record.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/paper-stock/transactions/${transaction._id}`, {
+        method: 'DELETE'
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to revert transaction');
+      }
+
+      loadTransactions();
+    } catch (err) {
+      console.error('Revert error:', err);
+      alert(err.message || 'Error reverting transaction');
+    }
+  };
+
+  const filteredTransactions = transactions.filter((item) => {
+    const matchesTab = (item.paperSource || 'Company paper') === activeTab;
+    const matchesType = typeFilter === 'all' || item.transactionType === typeFilter;
+    const query = searchQuery.toLowerCase();
+    const matchesSearch =
+      (item.stockName || '').toLowerCase().includes(query) ||
+      (item.paperName || '').toLowerCase().includes(query) ||
+      (item.partyName || '').toLowerCase().includes(query) ||
+      (item.jobNumber || '').toLowerCase().includes(query) ||
+      (item.note || '').toLowerCase().includes(query);
+    return matchesTab && matchesType && matchesSearch;
+  });
+
+  const totalAdded = filteredTransactions
+    .filter((t) => t.transactionType === 'add')
+    .reduce((sum, t) => sum + (t.quantity || 0), 0);
+  const totalDeducted = filteredTransactions
+    .filter((t) => t.transactionType === 'deduct')
+    .reduce((sum, t) => sum + (t.quantity || 0), 0);
+
+  const formatDateTime = (value) => {
+    const date = new Date(value);
+    return date.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  return (
+    <div className="w-full px-4 mt-8 pb-12 text-gray-800 animate-in fade-in duration-500">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900 flex items-center gap-3 tracking-tight">
+            <div className="bg-indigo-600 w-2 h-8 rounded-full" />
+            Paper Stock Statements
+          </h1>
+          <p className="text-sm text-gray-500 mt-1 font-medium italic">
+            Complete history of stock additions and deductions — with date, time, quantity, and party.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-5">
+          <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
+            <ArrowUpCircle size={26} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Total Stock Added</p>
+            <h3 className="text-2xl font-black text-gray-900 tracking-tight">{totalAdded.toLocaleString()} Sheets</h3>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-5">
+          <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center text-red-500">
+            <ArrowDownCircle size={26} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Total Stock Deducted</p>
+            <h3 className="text-2xl font-black text-gray-900 tracking-tight">{totalDeducted.toLocaleString()} Sheets</h3>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-3 mb-6">
+        <div className="flex border-b border-gray-100 bg-white p-2 rounded-2xl shadow-sm gap-2 flex-1">
+          {['Company paper', 'Party paper'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 py-3 px-4 rounded-xl font-bold uppercase tracking-wider text-xs transition-all ${
+                activeTab === tab ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              {tab === 'Company paper' ? '🏢 Company Paper' : '🎉 Party Paper'}
+            </button>
+          ))}
+        </div>
+        <div className="flex bg-white p-2 rounded-2xl shadow-sm gap-2">
+          {[
+            { id: 'all', label: 'All' },
+            { id: 'add', label: 'Added' },
+            { id: 'deduct', label: 'Deducted' },
+          ].map((filter) => (
+            <button
+              key={filter.id}
+              onClick={() => setTypeFilter(filter.id)}
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all ${
+                typeFilter === filter.id ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-6 border-b border-gray-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <h2 className="text-lg font-bold text-gray-900">Stock Transaction History</h2>
+          <div className="relative w-full sm:w-72">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-500" />
+            <input
+              type="text"
+              placeholder="Search name, party, job..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-indigo-50/50 border-2 border-indigo-200 rounded-xl text-sm font-medium outline-none focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 text-indigo-900 placeholder:text-indigo-400 transition-all shadow-sm"
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto min-h-75">
+          <table className="w-full text-left whitespace-nowrap">
+            <thead>
+              <tr className="bg-gray-50/50 text-[11px] font-black uppercase text-gray-900 tracking-[0.12em] border-b border-gray-100">
+                <th className="px-6 py-4">Party Name</th>
+                <th className="px-6 py-4">Date & Time</th>
+                <th className="px-6 py-4">Stock Name</th>
+                <th className="px-6 py-4">Paper Type</th>
+                <th className="px-6 py-4 text-center">Action</th>
+                <th className="px-6 py-4 text-right">Quantity</th>
+                <th className="px-6 py-4">Job No.</th>
+                <th className="px-6 py-4 text-right">Balance After</th>
+                <th className="px-6 py-4 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {loading ? (
+                <tr><td colSpan="9" className="px-6 py-20 text-center text-indigo-500 font-bold animate-pulse uppercase">Loading...</td></tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan="9" className="px-6 py-20 text-center">
+                    <p className="text-red-500 font-bold mb-3">{error}</p>
+                    <button
+                      type="button"
+                      onClick={loadTransactions}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700"
+                    >
+                      Try again
+                    </button>
+                  </td>
+                </tr>
+              ) : filteredTransactions.length === 0 ? (
+                <tr>
+                  <td colSpan="9" className="px-6 py-20 text-center text-indigo-500 italic">
+                    No transactions yet. Add new stock or use paper from a Job Card — history will appear here.
+                  </td>
+                </tr>
+              ) : (
+                filteredTransactions.map((item) => (
+                  <tr key={item._id} className="hover:bg-gray-50/60 transition-colors">
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-1.5 text-sm font-bold text-gray-800">
+                        <User size={13} className="text-indigo-500 shrink-0" />
+                        <HighlightText text={item.partyName || '—'} highlight={searchQuery} />
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-2 text-sm font-bold text-gray-700">
+                        <Calendar size={14} className="text-indigo-500" />
+                        {formatDateTime(item.createdAt)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-2">
+                        <Layers size={14} className="text-indigo-500" />
+                        <div>
+                          <p className="font-black text-gray-900 uppercase text-sm">
+                            <HighlightText text={item.stockName || item.paperName} highlight={searchQuery} />
+                          </p>
+                          {item.paperName && item.paperName !== item.stockName && (
+                            <p className="text-[10px] text-indigo-500 font-bold mt-0.5">
+                              <HighlightText text={item.paperName} highlight={searchQuery} />
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${
+                        item.paperType === 'cover'
+                          ? 'bg-sky-50 text-sky-700 border border-sky-100'
+                          : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                      }`}>
+                        {item.paperType === 'cover' ? 'Cover Paper' : 'Inner Paper'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-5 text-center">
+                      {item.transactionType === 'add' ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-black uppercase ring-1 ring-emerald-100">
+                          <ArrowUpCircle size={12} /> Stock Added
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-600 rounded-full text-[10px] font-black uppercase ring-1 ring-red-100">
+                          <ArrowDownCircle size={12} /> Stock Deducted
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-5 text-right">
+                      <p className={`font-black text-sm ${item.transactionType === 'add' ? 'text-emerald-600' : 'text-red-500'}`}>
+                        {item.transactionType === 'add' ? '+' : '-'}{item.quantity?.toLocaleString()} Sheets
+                      </p>
+                    </td>
+                    <td className="px-6 py-5">
+                      {item.jobNumber ? (
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-600">
+                          <Hash size={12} />
+                          <HighlightText text={item.jobNumber} highlight={searchQuery} />
+                        </div>
+                      ) : (
+                        <span className="text-xs font-semibold text-indigo-500 italic">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-5 text-right">
+                      <p className="font-black text-gray-900 text-sm">{item.balanceAfter?.toLocaleString()} Sheets</p>
+                    </td>
+                    <td className="px-6 py-5 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        {item.paperStockId ? (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedLedgerStock({ 
+                              id: item.paperStockId, 
+                              name: item.stockName || item.paperName 
+                            })}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+                          >
+                            <Eye size={16} />
+                          </button>
+                        ) : (
+                          <span className="text-gray-400 italic text-xs">N/A</span>
+                        )}
+                        {item.transactionType === 'deduct' && (
+                          <button
+                            type="button"
+                            onClick={() => handleRevert(item)}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
+                            title="Revert Transaction"
+                          >
+                            <Undo2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {selectedLedgerStock && (
+        <StockLedgerModal
+          stockId={selectedLedgerStock.id}
+          stockName={selectedLedgerStock.name}
+          onClose={() => setSelectedLedgerStock(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+export default PaperStockStatements;
