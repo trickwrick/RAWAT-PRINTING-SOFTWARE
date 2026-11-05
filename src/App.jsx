@@ -645,25 +645,45 @@ export default function App() {
               )}
             </span>
 
-            {/* LEFT SIDE (LOGO KE NICHE) DIWALI HANGING LADI, ROCKET & FIREWORK BURST */}
-            <div className="absolute -bottom-5 left-8 flex items-start gap-2.5 pointer-events-none select-none z-50">
-              <svg className="w-24 h-4 overflow-visible" viewBox="0 0 100 20">
-                <path d="M 0,0 Q 25,12 50,4 Q 75,12 100,0" fill="none" stroke="#ca8a04" strokeWidth="1" strokeDasharray="2 1.5" opacity="0.6" />
+            {/* LEFT SIDE (LOGO SE LEKAR DASHBOARD TAK) DIWALI HANGING LADI, REAL ROCKET & FIREWORK BURST */}
+            <div className="absolute -bottom-5 left-8 flex items-start pointer-events-none select-none z-50">
+              <svg className="w-[180px] sm:w-[220px] h-4 overflow-visible" viewBox="0 0 200 20">
+                <path
+                  d="M 0,0 Q 25,11 50,2 Q 75,11 100,2 Q 125,11 150,2 Q 175,11 200,0"
+                  fill="none"
+                  stroke="#ca8a04"
+                  strokeWidth="1"
+                  strokeDasharray="2 1.5"
+                  opacity="0.6"
+                />
                 <circle cx="15" cy="5" r="3" fill="#facc15" className="nav-ladi-bulb-1" />
-                <circle cx="35" cy="8" r="3.2" fill="#ef4444" className="nav-ladi-bulb-2" />
+                <circle cx="35" cy="7.5" r="3.2" fill="#ef4444" className="nav-ladi-bulb-2" />
                 <circle cx="65" cy="7" r="3" fill="#10b981" className="nav-ladi-bulb-3" />
-                <circle cx="85" cy="4" r="3.2" fill="#f59e0b" className="nav-ladi-bulb-1" />
+                <circle cx="85" cy="5" r="3.2" fill="#f59e0b" className="nav-ladi-bulb-1" />
+                <circle cx="115" cy="6.5" r="3" fill="#3b82f6" className="nav-ladi-bulb-2" />
+                <circle cx="140" cy="8" r="3.2" fill="#ec4899" className="nav-ladi-bulb-3" />
+                <circle cx="165" cy="6.5" r="3" fill="#facc15" className="nav-ladi-bulb-1" />
+                <circle cx="190" cy="4.5" r="3.2" fill="#10b981" className="nav-ladi-bulb-2" />
               </svg>
             </div>
 
-            <div className="absolute -bottom-8 -left-2 pointer-events-none select-none nav-rocket-left">
-              <div className="flex flex-col items-center">
-                <span className="text-sm">🚀</span>
-                <div className="w-0.5 h-6 bg-gradient-to-t from-transparent via-amber-400 to-yellow-200 blur-[0.5px]" />
-              </div>
+            {/* Left Real Diwali Wooden Stick Rocket */}
+            <div className="absolute -bottom-10 -left-3 pointer-events-none select-none nav-rocket-left">
+              <svg width="22" height="65" viewBox="0 0 22 65" fill="none" className="overflow-visible">
+                <polygon points="11,0 4,14 18,14" fill="#dc2626" stroke="#fef08a" strokeWidth="0.8" />
+                <rect x="5" y="14" width="12" height="22" rx="1.5" fill="#ea580c" stroke="#fde047" strokeWidth="0.8" />
+                <rect x="5" y="18" width="12" height="3" fill="#facc15" />
+                <rect x="5" y="27" width="12" height="3" fill="#16a34a" />
+                <line x1="11" y1="26" x2="11" y2="58" stroke="#ca8a04" strokeWidth="1.8" strokeLinecap="round" />
+                <g className="real-rocket-sparks">
+                  <circle cx="11" cy="38" r="2.5" fill="#fef08a" />
+                  <path d="M 8,36 Q 11,46 14,36" fill="#f97316" />
+                  <line x1="11" y1="36" x2="11" y2="48" stroke="#f59e0b" strokeWidth="2.5" strokeDasharray="3 1" />
+                </g>
+              </svg>
             </div>
 
-            <div className="absolute -bottom-9 left-28 w-8 h-8 pointer-events-none select-none nav-burst-left">
+            <div className="absolute -bottom-9 left-36 w-8 h-8 pointer-events-none select-none nav-burst-left">
               <svg viewBox="0 0 50 50" className="w-full h-full">
                 <circle cx="25" cy="25" r="2" fill="#fef08a" />
                 <line x1="25" y1="25" x2="25" y2="5" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="2 1" />
