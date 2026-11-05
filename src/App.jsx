@@ -631,7 +631,7 @@ export default function App() {
             {isMobileMenuOpen ? <CloseIcon size={24} /> : <MenuIcon size={24} />}
           </button>
 
-          <div className="flex items-center gap-2 text-xl font-bold text-gray-900 tracking-tight">
+          <div className="relative flex items-center gap-2 text-xl font-bold text-gray-900 tracking-tight">
             {siteSettings.logo ? (
               <img src={siteSettings.logo} alt="Site Logo" className="h-9 w-9 object-contain shrink-0" />
             ) : (
@@ -644,6 +644,37 @@ export default function App() {
                 siteSettings.siteTitle
               )}
             </span>
+
+            {/* LEFT SIDE (LOGO KE NICHE) DIWALI HANGING LADI, ROCKET & FIREWORK BURST */}
+            <div className="absolute -bottom-5 left-8 flex items-start gap-2.5 pointer-events-none select-none z-50">
+              <svg className="w-24 h-4 overflow-visible" viewBox="0 0 100 20">
+                <path d="M 0,0 Q 25,12 50,4 Q 75,12 100,0" fill="none" stroke="#ca8a04" strokeWidth="1" strokeDasharray="2 1.5" opacity="0.6" />
+                <circle cx="15" cy="5" r="3" fill="#facc15" className="nav-ladi-bulb-1" />
+                <circle cx="35" cy="8" r="3.2" fill="#ef4444" className="nav-ladi-bulb-2" />
+                <circle cx="65" cy="7" r="3" fill="#10b981" className="nav-ladi-bulb-3" />
+                <circle cx="85" cy="4" r="3.2" fill="#f59e0b" className="nav-ladi-bulb-1" />
+              </svg>
+            </div>
+
+            <div className="absolute -bottom-8 -left-2 pointer-events-none select-none nav-rocket-left">
+              <div className="flex flex-col items-center">
+                <span className="text-sm">🚀</span>
+                <div className="w-0.5 h-6 bg-gradient-to-t from-transparent via-amber-400 to-yellow-200 blur-[0.5px]" />
+              </div>
+            </div>
+
+            <div className="absolute -bottom-9 left-28 w-8 h-8 pointer-events-none select-none nav-burst-left">
+              <svg viewBox="0 0 50 50" className="w-full h-full">
+                <circle cx="25" cy="25" r="2" fill="#fef08a" />
+                <line x1="25" y1="25" x2="25" y2="5" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="2 1" />
+                <line x1="25" y1="25" x2="42" y2="12" stroke="#ef4444" strokeWidth="1.5" strokeDasharray="2 1" />
+                <line x1="25" y1="25" x2="45" y2="25" stroke="#3b82f6" strokeWidth="1.5" strokeDasharray="2 1" />
+                <line x1="25" y1="25" x2="38" y2="40" stroke="#10b981" strokeWidth="1.5" strokeDasharray="2 1" />
+                <line x1="25" y1="25" x2="12" y2="40" stroke="#ec4899" strokeWidth="1.5" strokeDasharray="2 1" />
+                <line x1="25" y1="25" x2="5" y2="25" stroke="#facc15" strokeWidth="1.5" strokeDasharray="2 1" />
+                <line x1="25" y1="25" x2="10" y2="10" stroke="#8b5cf6" strokeWidth="1.5" strokeDasharray="2 1" />
+              </svg>
+            </div>
           </div>
         </div>
 
@@ -691,7 +722,38 @@ export default function App() {
           })}
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 ml-auto">
+        <div className="relative flex items-center gap-1.5 sm:gap-3 shrink-0 ml-auto">
+          {/* RIGHT SIDE (PROFILE KE NICHE) DIWALI HANGING LADI, ROCKET & FIREWORK BURST */}
+          <div className="absolute -bottom-5 right-4 flex items-start gap-2.5 pointer-events-none select-none z-50">
+            <svg className="w-24 h-4 overflow-visible" viewBox="0 0 100 20">
+              <path d="M 0,0 Q 25,12 50,4 Q 75,12 100,0" fill="none" stroke="#ca8a04" strokeWidth="1" strokeDasharray="2 1.5" opacity="0.6" />
+              <circle cx="15" cy="5" r="3.2" fill="#ef4444" className="nav-ladi-bulb-2" />
+              <circle cx="38" cy="8" r="3" fill="#facc15" className="nav-ladi-bulb-1" />
+              <circle cx="62" cy="7" r="3.2" fill="#10b981" className="nav-ladi-bulb-3" />
+              <circle cx="85" cy="4" r="3" fill="#f59e0b" className="nav-ladi-bulb-1" />
+            </svg>
+          </div>
+
+          <div className="absolute -bottom-8 -right-2 pointer-events-none select-none nav-rocket-right">
+            <div className="flex flex-col items-center">
+              <span className="text-sm">🚀</span>
+              <div className="w-0.5 h-6 bg-gradient-to-t from-transparent via-orange-400 to-yellow-200 blur-[0.5px]" />
+            </div>
+          </div>
+
+          <div className="absolute -bottom-9 right-24 w-8 h-8 pointer-events-none select-none nav-burst-right">
+            <svg viewBox="0 0 50 50" className="w-full h-full">
+              <circle cx="25" cy="25" r="2" fill="#ffffff" />
+              <line x1="25" y1="25" x2="25" y2="4" stroke="#f43f5e" strokeWidth="1.5" strokeDasharray="2 1" />
+              <line x1="25" y1="25" x2="44" y2="12" stroke="#facc15" strokeWidth="1.5" strokeDasharray="2 1" />
+              <line x1="25" y1="25" x2="45" y2="25" stroke="#10b981" strokeWidth="1.5" strokeDasharray="2 1" />
+              <line x1="25" y1="25" x2="38" y2="40" stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="2 1" />
+              <line x1="25" y1="25" x2="12" y2="40" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="2 1" />
+              <line x1="25" y1="25" x2="5" y2="25" stroke="#ec4899" strokeWidth="1.5" strokeDasharray="2 1" />
+              <line x1="25" y1="25" x2="10" y2="10" stroke="#a855f7" strokeWidth="1.5" strokeDasharray="2 1" />
+            </svg>
+          </div>
+
           <div className="relative" ref={notifRef}>
             <button
               onClick={() => setIsNotifOpen(!isNotifOpen)}
